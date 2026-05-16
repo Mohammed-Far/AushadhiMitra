@@ -13,7 +13,7 @@ import com.example.greenpulse.data.SlotID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddMedicineScreen(onSave: () -> Unit) {
+fun AddMedicineScreen(onSave: (String, SlotID, IntakeType, String) -> Unit) {
     var name by remember { mutableStateOf("") }
     var selectedSlot by remember { mutableStateOf(SlotID.S1) }
     var intakeType by remember { mutableStateOf(IntakeType.NONE) }
@@ -23,13 +23,13 @@ fun AddMedicineScreen(onSave: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState()),
     ) {
         Text(
             text = "Add New Medicine",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
         )
         
         Spacer(modifier = Modifier.height(24.dp))
@@ -38,7 +38,7 @@ fun AddMedicineScreen(onSave: () -> Unit) {
             value = name,
             onValueChange = { name = it },
             label = { Text("Medicine Name") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -46,13 +46,13 @@ fun AddMedicineScreen(onSave: () -> Unit) {
         Text("Select Hardware Slot", style = MaterialTheme.typography.titleMedium)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             SlotID.entries.forEach { slot ->
                 FilterChip(
                     selected = selectedSlot == slot,
                     onClick = { selectedSlot = slot },
-                    label = { Text(slot.name) }
+                    label = { Text(slot.name) },
                 )
             }
         }
@@ -62,13 +62,13 @@ fun AddMedicineScreen(onSave: () -> Unit) {
         Text("Intake Instructions", style = MaterialTheme.typography.titleMedium)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             IntakeType.entries.forEach { type ->
                 FilterChip(
                     selected = intakeType == type,
                     onClick = { intakeType = type },
-                    label = { Text(type.name.replace("_", " ")) }
+                    label = { Text(type.name.replace("_", " ")) },
                 )
             }
         }
@@ -79,16 +79,16 @@ fun AddMedicineScreen(onSave: () -> Unit) {
             value = dosage,
             onValueChange = { dosage = it },
             label = { Text("Dosage (e.g., 1 pill)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { onSave() },
+            onClick = { onSave(name, selectedSlot, intakeType, dosage) },
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium
+            shape = MaterialTheme.shapes.medium,
+            enabled = name.isNotBlank()
         ) {
             Text("Save Medicine", modifier = Modifier.padding(8.dp))
         }

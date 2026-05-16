@@ -11,37 +11,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.greenpulse.MainViewModel
 import com.example.greenpulse.data.SMSLog
 import com.example.greenpulse.data.SMSLogType
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun SMSLogsScreen() {
-    val logs = listOf(
-        SMSLog(type = SMSLogType.CONFIRMATION, message = "Aspirin taken successfully at 08:05 AM."),
-        SMSLog(type = SMSLogType.WARNING, message = "WARNING: Vitamin C dose missed! Caretaker notified."),
-        SMSLog(type = SMSLogType.REMINDER, message = "Reminder: It's time for your Metformin dose.")
-    )
+fun SMSLogsScreen(viewModel: MainViewModel) {
+    val logs = viewModel.smsLogs
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
     ) {
         Text(
             text = "SMS History",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(logs) { log ->
-                SMSLogCard(log)
+        if (logs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No logs yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.secondary)
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(logs) { log ->
+                    SMSLogCard(log)
+                }
             }
         }
     }
@@ -59,12 +62,12 @@ fun SMSLogCard(log: SMSLog) {
                 SMSLogType.WARNING -> MaterialTheme.colorScheme.errorContainer
                 SMSLogType.CONFIRMATION -> MaterialTheme.colorScheme.primaryContainer
                 SMSLogType.REMINDER -> MaterialTheme.colorScheme.secondaryContainer
-            }
-        )
+            },
+        ),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.ChatBubbleOutline, contentDescription = null)
             Spacer(modifier = Modifier.width(12.dp))
@@ -72,11 +75,11 @@ fun SMSLogCard(log: SMSLog) {
                 Text(
                     text = log.message,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
                 Text(
                     text = dateString,
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
