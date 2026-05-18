@@ -7,7 +7,7 @@ enum class IntakeType {
 }
 
 enum class SlotID {
-    S1, S2, S3, S4
+    S1, S2, S3, S4, S5, S6
 }
 
 data class Medicine(
@@ -26,12 +26,13 @@ data class DoseRecord(
     val medicineName: String = "",
     val slot: SlotID = SlotID.S1,
     val scheduledTime: String = "",
-    val actualTime: Long? = null, // null if missed
-    val status: DoseStatus = DoseStatus.PENDING
+    val actualTime: Long? = null,
+    val status: DoseStatus = DoseStatus.PENDING,
+    val sensorDetected: Boolean = true // Simulation: true = tablet still on plate
 )
 
 enum class DoseStatus {
-    PENDING, TAKEN, MISSED
+    PENDING, DISPENSED, TAKEN, MISSED
 }
 
 data class SMSLog(

@@ -19,15 +19,19 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import com.example.greenpulse.ui.navigation.Screen
-import com.example.greenpulse.ui.screens.*
-import com.example.greenpulse.ui.theme.GreenPulseTheme
+import com.example.greenpulse.ui.screens.ReportsScreen
+import com.example.greenpulse.ui.screens.SMSLogsScreen
+import com.example.greenpulse.ui.screens.ScheduleScreen
+import com.example.greenpulse.ui.screens.SettingsScreen
+import com.example.greenpulse.ui.screens.TabletsScreen
+import com.example.greenpulse.ui.theme.AushadhiMitraTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            GreenPulseTheme {
+            AushadhiMitraTheme {
                 MainScreen()
             }
         }
@@ -71,16 +75,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 startDestination = Screen.Schedule.route,
                 modifier = Modifier.padding(innerPadding)
             ) {
-                composable(Screen.Schedule.route) { ScheduleScreen(viewModel) }
-                composable(Screen.Reports.route) { ReportsScreen(viewModel) }
-                composable(Screen.Action.route) { 
-                    AddMedicineScreen(onSave = { name, slot, intake, dosage ->
-                        viewModel.addMedicine(name, slot, intake, dosage)
-                        navController.navigate(Screen.Schedule.route) 
-                    }) 
-                }
-                composable(Screen.SMSLogs.route) { SMSLogsScreen(viewModel) }
-                composable(Screen.Settings.route) { SettingsScreen(viewModel) }
+            composable(Screen.Schedule.route) { ScheduleScreen(viewModel) }
+            composable(Screen.Tablets.route) { TabletsScreen(viewModel) }
+            composable(Screen.Reports.route) { ReportsScreen(viewModel) }
+            composable(Screen.SMSLogs.route) { SMSLogsScreen(viewModel) }
+            composable(Screen.Settings.route) { SettingsScreen(viewModel) }
             }
         }
 
@@ -114,10 +113,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
-                            onClick = { viewModel.stopAlert() },
+                            onClick = { viewModel.dispenseMedicine() },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                         ) {
-                            Text("DISPENSE & CONFIRM")
+                            Text("DISPENSE MEDICINE")
                         }
                     }
                 }

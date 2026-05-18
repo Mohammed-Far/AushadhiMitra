@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GreenPulse"
+rootProject.name = "AushadhiMitra"
 include(":app")

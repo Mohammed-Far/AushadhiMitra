@@ -41,7 +41,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun GreenPulseTheme(
+fun AushadhiMitraTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = false, // Set to false to force our Emerald theme
