@@ -7,31 +7,33 @@ enum class IntakeType {
 }
 
 enum class SlotID {
-    S1, S2, S3, S4
+    S1, S2, S3, S4, S5, S6
 }
 
 data class Medicine(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String = "",
+    val id: String = "", // Matches {userId}_med_X
+    val tabletName: String = "", // "Tablet 1" to "Tablet 6"
+    val userMedicineName: String = "", // User entered name (e.g. "Aspirin")
+    val time: String = "", // "HH:mm"
     val slot: SlotID = SlotID.S1,
-    val intakeType: IntakeType = IntakeType.NONE,
-    val reminderTimes: List<String> = emptyList(), // Store as "HH:mm"
-    val daysOfWeek: List<Int> = listOf(1, 2, 3, 4, 5, 6, 7), // 1=Sun, 7=Sat
-    val dosage: String = "1 pill"
+    val userId: String = "simulated_user_123",
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 data class DoseRecord(
     val id: String = UUID.randomUUID().toString(),
     val medicineId: String = "",
+    val tabletName: String = "", // Grouping key for reports
     val medicineName: String = "",
     val slot: SlotID = SlotID.S1,
     val scheduledTime: String = "",
-    val actualTime: Long? = null, // null if missed
-    val status: DoseStatus = DoseStatus.PENDING
+    val actualTime: Long? = null,
+    val status: DoseStatus = DoseStatus.PENDING,
+    val sensorDetected: Boolean = true
 )
 
 enum class DoseStatus {
-    PENDING, TAKEN, MISSED
+    PENDING, DISPENSED, TAKEN, MISSED
 }
 
 data class SMSLog(
@@ -46,7 +48,10 @@ enum class SMSLogType {
 }
 
 data class PatientProfile(
-    val name: String = "",
-    val age: Int = 0,
-    val healthNotes: String = ""
+    val name: String = "John Doe",
+    val age: String = "65",
+    val gender: String = "Male",
+    val bloodGroup: String = "O+",
+    val weight: String = "70 kg",
+    val healthCondition: String = "Hypertension"
 )

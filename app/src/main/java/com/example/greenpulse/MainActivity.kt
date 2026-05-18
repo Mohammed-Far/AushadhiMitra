@@ -4,12 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -20,22 +24,40 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import com.example.greenpulse.ui.navigation.Screen
 import com.example.greenpulse.ui.screens.*
-import com.example.greenpulse.ui.theme.GreenPulseTheme
+import com.example.greenpulse.ui.theme.AushadhiMitraTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            GreenPulseTheme {
-                MainScreen()
+            AushadhiMitraTheme {
+                AppNavigator()
             }
         }
     }
 }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun AppNavigator(
+    authViewModel: AuthViewModel = viewModel(),
+    mainViewModel: MainViewModel = viewModel()
+) {
+    val authState by authViewModel.authState
+
+    when (authState) {
+        is AuthState.Authenticated -> {
+            MainScreen(mainViewModel, onSignOut = { authViewModel.signOut() })
+        }
+        else -> {
+            AuthScreen(authViewModel)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
     val navController = rememberNavController()
     val isBuzzerActive by viewModel.isBuzzerActive
     val alertingMedicine by viewModel.currentAlertMedicine
@@ -43,14 +65,18 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    modifier = Modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp,
+                ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
                     
                     Screen.bottomNavItems.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
+                            label = { Text(screen.title, fontWeight = FontWeight.Bold) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -60,7 +86,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.secondary,
+                                unselectedTextColor = MaterialTheme.colorScheme.secondary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            ),
                         )
                     }
                 }
@@ -72,52 +105,88 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable(Screen.Schedule.route) { ScheduleScreen(viewModel) }
+                composable(Screen.Tablets.route) { TabletsScreen(viewModel) }
                 composable(Screen.Reports.route) { ReportsScreen(viewModel) }
-                composable(Screen.Action.route) { 
-                    AddMedicineScreen(onSave = { name, slot, intake, dosage ->
-                        viewModel.addMedicine(name, slot, intake, dosage)
-                        navController.navigate(Screen.Schedule.route) 
-                    }) 
-                }
                 composable(Screen.SMSLogs.route) { SMSLogsScreen(viewModel) }
-                composable(Screen.Settings.route) { SettingsScreen(viewModel) }
+                composable(Screen.Settings.route) { 
+                    SettingsScreen(viewModel, onLogout = onSignOut) 
+                }
             }
         }
 
-        // Persistent Alert Overlay
-        if (isBuzzerActive && alertingMedicine != null) {
+        // Premium Alert Overlay with Smooth Animation
+        AnimatedVisibility(
+            visible = isBuzzerActive && (alertingMedicine != null),
+            enter = fadeIn() + expandIn(expandFrom = Alignment.Center),
+            exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.Center)
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.8f))
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 24.dp),
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.surface),
+                                ),
+                            )
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("🚨 MEDICINE DUE NOW", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            text = "ATTENTION",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.error,
+                            letterSpacing = 2.sp,
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            alertingMedicine!!.name,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
+                            text = "Medicine Due Now",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "Slot ${alertingMedicine!!.slot.name} • ${alertingMedicine!!.intakeType.name.replace("_", " ")}",
-                            style = MaterialTheme.typography.bodyLarge
+                            text = alertingMedicine?.userMedicineName ?: "",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Text(
+                                    text = "Slot ${alertingMedicine?.slot?.name ?: ""}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(32.dp))
                         Button(
-                            onClick = { viewModel.stopAlert() },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            onClick = { viewModel.dispenseMedicine() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         ) {
-                            Text("DISPENSE & CONFIRM")
+                            Text("DISPENSE MEDICINE", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }

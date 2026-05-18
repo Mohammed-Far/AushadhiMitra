@@ -3,62 +3,140 @@ package com.example.greenpulse
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.greenpulse.data.*
-import java.util.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainViewModel : ViewModel() {
     val medicines = mutableStateListOf<Medicine>()
     val doseRecords = mutableStateListOf<DoseRecord>()
     val smsLogs = mutableStateListOf<SMSLog>()
     
-    var isBuzzerActive = mutableStateOf(false)
-    var currentAlertMedicine = mutableStateOf<Medicine?>(null)
+    val isBuzzerActive = mutableStateOf(value = false)
+    val currentAlertMedicine = mutableStateOf<Medicine?>(value = null)
+    val activeDoseId = mutableStateOf<String?>(value = null)
+    
+    var patientProfile = mutableStateOf(value = PatientProfile())
 
     init {
-        // Mock initial data
-        val m1 = Medicine(name = "Aspirin", slot = SlotID.S1, intakeType = IntakeType.AFTER_FOOD)
-        val m2 = Medicine(name = "Vitamin C", slot = SlotID.S2, intakeType = IntakeType.BEFORE_FOOD)
-        medicines.add(m1)
-        medicines.add(m2)
-        
-        doseRecords.add(DoseRecord(medicineName = m1.name, scheduledTime = "08:00", status = DoseStatus.TAKEN, slot = m1.slot))
-        doseRecords.add(DoseRecord(medicineName = m2.name, scheduledTime = "12:00", status = DoseStatus.PENDING, slot = m2.slot))
-        
-        smsLogs.add(SMSLog(type = SMSLogType.CONFIRMATION, message = "Aspirin taken successfully at 08:05 AM."))
-    }
-
-    fun addMedicine(name: String, slot: SlotID, intakeType: IntakeType, dosage: String) {
-        val newMed = Medicine(name = name, slot = slot, intakeType = intakeType, dosage = dosage)
-        medicines.add(newMed)
-        // Simulate adding a dose record for today
-        doseRecords.add(DoseRecord(medicineName = name, scheduledTime = "14:00", status = DoseStatus.PENDING, slot = slot))
-        
-        addSMSLog(SMSLogType.REMINDER, "New medicine added: $name assigned to Slot ${slot.name}")
-    }
-
-    fun markAsTaken(recordId: String) {
-        val index = doseRecords.indexOfFirst { it.id == recordId }
-        if (index != -1) {
-            val record = doseRecords[index]
-            doseRecords[index] = record.copy(status = DoseStatus.TAKEN, actualTime = System.currentTimeMillis())
-            addSMSLog(SMSLogType.CONFIRMATION, "${record.medicineName} taken successfully.")
-            
-            // If this was the alerting med, stop buzzer
-            if (currentAlertMedicine.value?.name == record.medicineName) {
-                stopAlert()
-            }
+        // Initialize exactly 6 tablets (Tablet 1 to Tablet 6)
+        SlotID.entries.forEachIndexed { index, slot ->
+            medicines.add(
+                Medicine(
+                    id = "user123_med_${index + 1}",
+                    tabletName = "Tablet ${index + 1}",
+                    slot = slot,
+                    userMedicineName = "",
+                    time = ""
+                )
+            )
         }
     }
 
-    fun triggerAlert(medicine: Medicine) {
-        currentAlertMedicine.value = medicine
-        isBuzzerActive.value = true
-        addSMSLog(SMSLogType.REMINDER, "Medicine due: ${medicine.name} in Slot ${medicine.slot.name}")
+    fun updateMedicine(slot: SlotID, userName: String, time: String) {
+        val index = medicines.indexOfFirst { it.slot == slot }
+        if (index != -1) {
+            val updatedMed = medicines[index].copy(
+                userMedicineName = userName, 
+                time = time, 
+                createdAt = System.currentTimeMillis()
+            )
+            medicines[index] = updatedMed
+            
+            // Sync Daily Schedule
+            doseRecords.removeAll { it.slot == slot }
+            if (userName.isNotEmpty() && time.isNotEmpty()) {
+                doseRecords.add(
+                    DoseRecord(
+                        medicineId = updatedMed.id,
+                        tabletName = updatedMed.tabletName,
+                        medicineName = userName,
+                        scheduledTime = time,
+                        status = DoseStatus.PENDING,
+                        slot = slot
+                    )
+                )
+            }
+            sortDoseRecords()
+            addSMSLog(SMSLogType.REMINDER, "Configured ${updatedMed.tabletName} ($userName) for $time")
+        }
     }
 
-    fun stopAlert() {
+    fun clearSlot(slot: SlotID) {
+        val index = medicines.indexOfFirst { it.slot == slot }
+        if (index != -1) {
+            val tabletName = medicines[index].tabletName
+            medicines[index] = medicines[index].copy(userMedicineName = "", time = "")
+            doseRecords.removeAll { it.slot == slot }
+            sortDoseRecords()
+            addSMSLog(SMSLogType.REMINDER, "Cleared configuration for $tabletName")
+        }
+    }
+
+    private fun sortDoseRecords() {
+        val sorted = doseRecords.sortedBy { it.scheduledTime }
+        doseRecords.clear()
+        doseRecords.addAll(sorted)
+    }
+
+    fun triggerAlert(medicine: Medicine, recordId: String) {
+        currentAlertMedicine.value = medicine
+        activeDoseId.value = recordId
+        isBuzzerActive.value = true
+        addSMSLog(SMSLogType.REMINDER, "REMINDER: Time for ${medicine.userMedicineName} (${medicine.tabletName})")
+    }
+
+    fun dispenseMedicine() {
+        val recordId = activeDoseId.value ?: return
+        val medicine = currentAlertMedicine.value ?: return
+        
+        updateRecordStatus(recordId, DoseStatus.DISPENSED)
         isBuzzerActive.value = false
+        
+        addSMSLog(SMSLogType.CONFIRMATION, "${medicine.tabletName} dispensed. Waiting for pickup...")
+
+        viewModelScope.launch {
+            delay(5000) 
+            checkSensor(recordId)
+        }
+    }
+
+    private fun checkSensor(recordId: String) {
+        val index = doseRecords.indexOfFirst { it.id == recordId }
+        if (index != -1) {
+            val record = doseRecords[index]
+            if (record.sensorDetected) {
+                updateRecordStatus(recordId, DoseStatus.MISSED)
+                addSMSLog(SMSLogType.WARNING, "CRITICAL: ${record.tabletName} was NOT taken!")
+            } else {
+                updateRecordStatus(recordId, DoseStatus.TAKEN)
+                addSMSLog(SMSLogType.CONFIRMATION, "CONFIRMED: ${record.tabletName} taken.")
+            }
+        }
         currentAlertMedicine.value = null
+        activeDoseId.value = null
+    }
+
+    fun simulatePickup(recordId: String) {
+        val index = doseRecords.indexOfFirst { it.id == recordId }
+        if (index != -1) {
+            doseRecords[index] = doseRecords[index].copy(sensorDetected = false)
+        }
+    }
+
+    private fun updateRecordStatus(recordId: String, status: DoseStatus) {
+        val index = doseRecords.indexOfFirst { it.id == recordId }
+        if (index != -1) {
+            doseRecords[index] = doseRecords[index].copy(
+                status = status, 
+                actualTime = if (status == DoseStatus.TAKEN) System.currentTimeMillis() else doseRecords[index].actualTime
+            )
+        }
+    }
+
+    fun updatePatientProfile(updated: PatientProfile) {
+        patientProfile.value = updated
     }
 
     private fun addSMSLog(type: SMSLogType, message: String) {
