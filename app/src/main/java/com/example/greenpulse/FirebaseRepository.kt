@@ -7,41 +7,47 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 
 class FirebaseRepository {
-    private val db = Firebase.firestore
+    private val db = Firebase.firestore("ai-studio-63a0dbe2-44e4-45c7-b52f-042b735f1da4")
     private val auth = Firebase.auth
     private val userId get() = auth.currentUser?.uid ?: "unknown"
+
+    // Helper to get user's medicine collection
+    private fun userMedicines() = db.collection("users").document(userId).collection("medicines")
 
     // ─── MEDICINES ───────────────────────────────────────────
 
     suspend fun saveMedicine(medicine: Medicine) {
-        val docId = "${userId}_${medicine.slot.name}"
-        db.collection("medicines").document(docId)
+        if (userId == "unknown") return
+        // Use just the slot name (S1, S2, etc) as the document ID for a clean look
+        userMedicines().document(medicine.slot.name)
             .set(mapOf(
-                "id" to docId,
                 "tabletName" to medicine.tabletName,
                 "userMedicineName" to medicine.userMedicineName,
-                "time" to medicine.time,
+                "times" to medicine.times,
                 "slot" to medicine.slot.name,
-                "userId" to userId,
-                "createdAt" to medicine.createdAt,
-                "taken" to false
+                "scheduleType" to medicine.scheduleType.name,
+                "selectedDays" to medicine.selectedDays.map { it.name },
+                "isActive" to medicine.isActive,
+                "createdAt" to medicine.createdAt
             )).await()
     }
 
     suspend fun loadMedicines(): List<Medicine> {
-        val snapshot = db.collection("medicines")
-            .whereEqualTo("userId", userId)
-            .get().await()
+        if (userId == "unknown") return emptyList()
+        val snapshot = userMedicines().get().await()
 
         return snapshot.documents.mapNotNull { doc ->
             try {
                 Medicine(
-                    id = doc.getString("id") ?: "",
+                    id = doc.id, // ID is now S1, S2, etc.
                     tabletName = doc.getString("tabletName") ?: "",
                     userMedicineName = doc.getString("userMedicineName") ?: "",
-                    time = doc.getString("time") ?: "",
+                    times = (doc.get("times") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
                     slot = SlotID.valueOf(doc.getString("slot") ?: "S1"),
-                    userId = doc.getString("userId") ?: "",
+                    userId = userId,
+                    scheduleType = ScheduleType.valueOf(doc.getString("scheduleType") ?: "EVERY_DAY"),
+                    selectedDays = (doc.get("selectedDays") as? List<*>)?.mapNotNull { DayOfWeek.valueOf(it as String) } ?: emptyList(),
+                    isActive = doc.getBoolean("isActive") ?: true,
                     createdAt = doc.getLong("createdAt") ?: 0L
                 )
             } catch (e: Exception) { null }
@@ -49,12 +55,12 @@ class FirebaseRepository {
     }
 
     suspend fun clearMedicine(slot: SlotID) {
-        val docId = "${userId}_${slot.name}"
-        db.collection("medicines").document(docId)
+        if (userId == "unknown") return
+        userMedicines().document(slot.name)
             .update(mapOf(
                 "userMedicineName" to "",
-                "time" to "",
-                "taken" to false
+                "times" to emptyList<String>(),
+                "isActive" to false
             )).await()
     }
 
@@ -63,8 +69,8 @@ class FirebaseRepository {
         slot: SlotID,
         onDispensed: () -> Unit
     ) {
-        val docId = "${userId}_${slot.name}"
-        db.collection("medicines").document(docId)
+        if (userId == "unknown") return
+        userMedicines().document(slot.name)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null && snapshot.exists()) {
                     val taken = snapshot.getBoolean("taken") ?: false
@@ -76,23 +82,25 @@ class FirebaseRepository {
     // ─── DOSE RECORDS (ADHERENCE) ─────────────────────────────
 
     suspend fun saveDoseRecord(record: DoseRecord) {
-        db.collection("adherence").document(record.id)
+        if (userId == "unknown") return
+        db.collection("users").document(userId).collection("adherence")
+            .document(record.id)
             .set(mapOf(
                 "id" to record.id,
-                "medicineId" to record.medicineId,
                 "tabletName" to record.tabletName,
                 "medicineName" to record.medicineName,
                 "slot" to record.slot.name,
                 "scheduledTime" to record.scheduledTime,
                 "actualTime" to record.actualTime,
                 "status" to record.status.name,
-                "userId" to userId,
                 "date" to java.time.LocalDate.now().toString()
             )).await()
     }
 
     suspend fun updateDoseStatus(recordId: String, status: DoseStatus) {
-        db.collection("adherence").document(recordId)
+        if (userId == "unknown") return
+        db.collection("users").document(userId).collection("adherence")
+            .document(recordId)
             .update(mapOf(
                 "status" to status.name,
                 "actualTime" to if (status == DoseStatus.TAKEN)
@@ -101,9 +109,9 @@ class FirebaseRepository {
     }
 
     suspend fun loadTodayDoseRecords(): List<DoseRecord> {
+        if (userId == "unknown") return emptyList()
         val today = java.time.LocalDate.now().toString()
-        val snapshot = db.collection("adherence")
-            .whereEqualTo("userId", userId)
+        val snapshot = db.collection("users").document(userId).collection("adherence")
             .whereEqualTo("date", today)
             .get().await()
 
@@ -120,3 +128,40 @@ class FirebaseRepository {
                     status = DoseStatus.valueOf(doc.getString("status") ?: "PENDING"),
                     sensorDetected = doc.getBoolean("sensorDetected") ?: true
                 )
+            } catch (e: Exception) { null }
+        }
+    }
+
+    // ─── PROFILE ─────────────────────────────────────────────
+
+    suspend fun loadProfile(): PatientProfile? {
+        if (userId == "unknown") return null
+        val snapshot = db.collection("users").document(userId).get().await()
+        return if (snapshot.exists()) {
+            PatientProfile(
+                name = snapshot.getString("name") ?: "",
+                age = snapshot.getString("age") ?: "",
+                gender = snapshot.getString("gender") ?: "",
+                bloodGroup = snapshot.getString("bloodGroup") ?: "",
+                weight = snapshot.getString("weight") ?: "",
+                healthCondition = snapshot.getString("healthCondition") ?: "",
+                isSetupComplete = snapshot.getBoolean("isSetupComplete") ?: false
+            )
+        } else null
+    }
+
+    suspend fun saveProfile(profile: PatientProfile) {
+        if (userId == "unknown") return
+        db.collection("users").document(userId)
+            .set(profile).await()
+    }
+
+    // ─── FCM TOKEN ───────────────────────────────────────────
+
+    suspend fun saveFCMToken(token: String) {
+        if (userId != "unknown") {
+            db.collection("users").document(userId)
+                .update("fcmToken", token).await()
+        }
+    }
+}

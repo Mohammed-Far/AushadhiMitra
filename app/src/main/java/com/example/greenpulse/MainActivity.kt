@@ -1,3 +1,5 @@
+package com.example.greenpulse
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -39,7 +41,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigator(
     authViewModel: AuthViewModel = viewModel(),
-    mainViewModel: MainViewModel = viewModel()
+    mainViewModel: MainViewModel = viewModel(),
 ) {
     val authState by authViewModel.authState
 
@@ -53,7 +55,12 @@ fun AppNavigator(
 
     when (authState) {
         is AuthState.Authenticated -> {
-            MainScreen(mainViewModel, onSignOut = { authViewModel.signOut() })
+            val profile by mainViewModel.patientProfile
+            if (!profile.isSetupComplete) {
+                ProfileSetupScreen(mainViewModel)
+            } else {
+                MainScreen(mainViewModel) { authViewModel.signOut() }
+            }
         }
         else -> {
             AuthScreen(authViewModel)
@@ -103,12 +110,12 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
                         )
                     }
                 }
-            }
+            },
         ) { innerPadding ->
             NavHost(
                 navController = navController,
                 startDestination = Screen.Schedule.route,
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.padding(innerPadding),
             ) {
                 composable(Screen.Schedule.route) { ScheduleScreen(viewModel) }
                 composable(Screen.Tablets.route) { TabletsScreen(viewModel) }
@@ -123,7 +130,7 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
         AnimatedVisibility(
             visible = isBuzzerActive && (alertingMedicine != null),
             enter = fadeIn() + expandIn(expandFrom = Alignment.Center),
-            exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.Center)
+            exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.Center),
         ) {
             Box(
                 modifier = Modifier

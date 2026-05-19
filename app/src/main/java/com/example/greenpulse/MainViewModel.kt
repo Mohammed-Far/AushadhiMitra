@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.greenpulse.data.*
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class MainViewModel : ViewModel() {
     private val repository = FirebaseRepository()
@@ -23,35 +24,31 @@ class MainViewModel : ViewModel() {
 
     init {
         initializeMedicineSlots()
-        // ✅ loadData() removed from here — called only after auth
     }
 
-    // ✅ Called from AppNavigator after AuthState.Authenticated
     fun onUserAuthenticated() {
         loadData()
     }
 
-    // Initialize 6 empty slots locally
     private fun initializeMedicineSlots() {
+        medicines.clear()
         SlotID.entries.forEachIndexed { index, slot ->
             medicines.add(
                 Medicine(
-                    id = "user_${slot.name}",
+                    id = "MED_${slot.name}",
                     tabletName = "Tablet ${index + 1}",
                     slot = slot,
                     userMedicineName = "",
-                    time = ""
+                    times = emptyList()
                 )
             )
         }
     }
 
-    // Load all data from Firestore
     fun loadData() {
         viewModelScope.launch {
             isLoading.value = true
             try {
-                // Load medicines
                 val loadedMedicines = repository.loadMedicines()
                 loadedMedicines.forEach { loaded ->
                     val index = medicines.indexOfFirst { it.slot == loaded.slot }
@@ -60,13 +57,11 @@ class MainViewModel : ViewModel() {
                     }
                 }
 
-                // Load today's dose records
                 val loadedRecords = repository.loadTodayDoseRecords()
                 doseRecords.clear()
                 doseRecords.addAll(loadedRecords)
                 sortDoseRecords()
 
-                // Load profile
                 val profile = repository.loadProfile()
                 if (profile != null) patientProfile.value = profile
 
@@ -78,73 +73,100 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // Update medicine and save to Firestore
-    fun updateMedicine(slot: SlotID, userName: String, time: String) {
+    fun updateMedicine(
+        slot: SlotID,
+        userName: String,
+        times: List<String>,
+        scheduleType: ScheduleType,
+        selectedDays: List<DayOfWeek>
+    ) {
         val index = medicines.indexOfFirst { it.slot == slot }
         if (index != -1) {
             val updatedMed = medicines[index].copy(
                 userMedicineName = userName,
-                time = time,
+                times = times,
+                scheduleType = scheduleType,
+                selectedDays = selectedDays,
+                isActive = true,
                 createdAt = System.currentTimeMillis()
             )
             medicines[index] = updatedMed
 
-            // Save to Firestore
             viewModelScope.launch {
                 try {
                     repository.saveMedicine(updatedMed)
+                    generateDoseRecordsForToday()
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
-
-            // Sync Daily Schedule
-            doseRecords.removeAll { it.slot == slot }
-            if (userName.isNotEmpty() && time.isNotEmpty()) {
-                val record = DoseRecord(
-                    medicineId = updatedMed.id,
-                    tabletName = updatedMed.tabletName,
-                    medicineName = userName,
-                    scheduledTime = time,
-                    status = DoseStatus.PENDING,
-                    slot = slot
-                )
-                doseRecords.add(record)
-
-                // Save dose record to Firestore
-                viewModelScope.launch {
-                    try {
-                        repository.saveDoseRecord(record)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-            sortDoseRecords()
-            addSMSLog(SMSLogType.REMINDER, "Configured ${updatedMed.tabletName} ($userName) for $time")
         }
     }
 
-    // Clear slot and update Firestore
+    fun cancelMedication(slot: SlotID) {
+        val index = medicines.indexOfFirst { it.slot == slot }
+        if (index != -1) {
+            val updatedMed = medicines[index].copy(isActive = false)
+            medicines[index] = updatedMed
+            viewModelScope.launch {
+                repository.saveMedicine(updatedMed)
+                generateDoseRecordsForToday()
+            }
+        }
+    }
+
+    private fun generateDoseRecordsForToday() {
+        val today = LocalDate.now()
+        val todayDay = DayOfWeek.valueOf(today.dayOfWeek.name)
+        val isEvenDay = today.dayOfYear % 2 == 0
+
+        val newRecords = mutableListOf<DoseRecord>()
+
+        medicines.filter { it.isActive && it.userMedicineName.isNotEmpty() }.forEach { med ->
+            val shouldSchedule = when (med.scheduleType) {
+                ScheduleType.EVERY_DAY -> true
+                ScheduleType.EVERY_OTHER_DAY -> isEvenDay // Simplified logic
+                ScheduleType.SPECIFIC_DAYS -> med.selectedDays.contains(todayDay)
+            }
+
+            if (shouldSchedule) {
+                med.times.forEach { time ->
+                    newRecords.add(
+                        DoseRecord(
+                            medicineId = med.id,
+                            tabletName = med.tabletName,
+                            medicineName = med.userMedicineName,
+                            scheduledTime = time,
+                            status = DoseStatus.PENDING,
+                            slot = med.slot
+                        )
+                    )
+                }
+            }
+        }
+
+        doseRecords.clear()
+        doseRecords.addAll(newRecords)
+        sortDoseRecords()
+        
+        // Optionally save these to Firestore as well
+        viewModelScope.launch {
+            newRecords.forEach { repository.saveDoseRecord(it) }
+        }
+    }
+
     fun clearSlot(slot: SlotID) {
         val index = medicines.indexOfFirst { it.slot == slot }
         if (index != -1) {
-            val tabletName = medicines[index].tabletName
             medicines[index] = medicines[index].copy(
                 userMedicineName = "",
-                time = ""
+                times = emptyList(),
+                isActive = false
             )
-            doseRecords.removeAll { it.slot == slot }
-            sortDoseRecords()
-
+            generateDoseRecordsForToday()
             viewModelScope.launch {
-                try {
-                    repository.clearMedicine(slot)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                repository.clearMedicine(slot)
             }
-            addSMSLog(SMSLogType.REMINDER, "Cleared configuration for $tabletName")
         }
     }
 

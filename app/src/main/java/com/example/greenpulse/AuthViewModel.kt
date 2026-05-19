@@ -85,4 +85,50 @@ class AuthViewModel : ViewModel() {
         checkUserStatus()
     }
 
-    private fun checkUse
+    private fun checkUserStatus() {
+        if (auth.currentUser != null) {
+            _authState.value = AuthState.Authenticated
+        }
+    }
+
+    fun signOut() {
+        auth.signOut()
+        _authState.value = AuthState.Idle
+    }
+
+    fun resetState() {
+        _authState.value = AuthState.Idle
+    }
+
+    fun login(email: String, psswrd: String) {
+        _authState.value = AuthState.Loading
+        auth.signInWithEmailAndPassword(email, psswrd)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    _authState.value = AuthState.Authenticated
+                } else {
+                    _authState.value = AuthState.Error(task.exception?.message ?: "Login failed")
+                }
+            }
+    }
+
+    fun signUp(email: String, psswrd: String) {
+        _authState.value = AuthState.Loading
+        auth.createUserWithEmailAndPassword(email, psswrd)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    user?.let {
+                        saveUserToFirestore(
+                            uid = it.uid,
+                            email = it.email ?: "",
+                            name = ""
+                        )
+                    }
+                    _authState.value = AuthState.Authenticated
+                } else {
+                    _authState.value = AuthState.Error(task.exception?.message ?: "Sign up failed")
+                }
+            }
+    }
+}

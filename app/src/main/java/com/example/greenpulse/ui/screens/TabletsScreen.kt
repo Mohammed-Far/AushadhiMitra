@@ -6,9 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +24,11 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.greenpulse.MainViewModel
+import com.example.greenpulse.data.DayOfWeek
 import com.example.greenpulse.data.Medicine
+import com.example.greenpulse.data.ScheduleType
 
 @Composable
 fun TabletsScreen(viewModel: MainViewModel) {
@@ -70,6 +77,7 @@ fun TabletsScreen(viewModel: MainViewModel) {
                     med = med,
                     onEdit = { slotToEdit = med },
                     onDelete = { viewModel.clearSlot(med.slot) },
+                    onCancel = { viewModel.cancelMedication(med.slot) }
                 )
             }
         }
@@ -80,18 +88,21 @@ fun TabletsScreen(viewModel: MainViewModel) {
         SlotEditDialog(
             slotName = currentSlot.tabletName,
             initialMedicineName = currentSlot.userMedicineName,
-            initialTime = currentSlot.time.ifEmpty { "08:00" },
+            initialTimes = currentSlot.times.ifEmpty { listOf("08:00") },
+            initialScheduleType = currentSlot.scheduleType,
+            initialSelectedDays = currentSlot.selectedDays,
             onDismiss = { slotToEdit = null },
-        ) { name, time ->
-            viewModel.updateMedicine(currentSlot.slot, name, time)
-            slotToEdit = null
-        }
+            onSave = { name, times, type, days ->
+                viewModel.updateMedicine(currentSlot.slot, name, times, type, days)
+                slotToEdit = null
+            }
+        )
     }
 }
 
 @Composable
-fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val isFilled = med.userMedicineName.isNotEmpty()
+fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit, onCancel: () -> Unit) {
+    val isFilled = med.userMedicineName.isNotEmpty() && med.isActive
 
     if (isFilled) {
         Card(
@@ -138,20 +149,31 @@ fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "🕐 ${med.time}",
+                        text = "🕐 ${med.times.joinToString(", ")}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )
+                    Text(
+                        text = "📅 ${med.scheduleType.name.replace("_", " ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
                 }
                 
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                Column {
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Cancel Course", tint = MaterialTheme.colorScheme.error)
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
     } else {
-        // Empty Slot with Dashed Border
+        // Empty Slot or Cancelled
         val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f))
+        val label = if (!med.isActive && med.userMedicineName.isNotEmpty()) "Course Finished" else "Empty"
         
         Box(
             modifier = Modifier
@@ -177,7 +199,7 @@ fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium
                 )
                 Text(
-                    text = "Empty (Tap to fill)",
+                    text = "$label (Tap to fill)",
                     color = Color.LightGray,
                     style = MaterialTheme.typography.bodyLarge
                 )
@@ -191,18 +213,25 @@ fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit) {
 fun SlotEditDialog(
     slotName: String,
     initialMedicineName: String,
-    initialTime: String,
+    initialTimes: List<String>,
+    initialScheduleType: ScheduleType,
+    initialSelectedDays: List<DayOfWeek>,
     onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
+    onSave: (String, List<String>, ScheduleType, List<DayOfWeek>) -> Unit,
 ) {
     var name by remember { mutableStateOf(value = initialMedicineName) }
-    var time by remember { mutableStateOf(value = initialTime) }
+    val times = remember { mutableStateListOf(*initialTimes.toTypedArray()) }
+    var scheduleType by remember { mutableStateOf(initialScheduleType) }
+    var selectedDays = remember { mutableStateListOf(*initialSelectedDays.toTypedArray()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Configure $slotName") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -211,20 +240,66 @@ fun SlotEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-                OutlinedTextField(
-                    value = time,
-                    onValueChange = { time = it },
-                    label = { Text("Reminder Time") },
-                    placeholder = { Text("HH:mm") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+
+                Text("Reminder Times (Max 4)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                times.forEachIndexed { index, time ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = time,
+                            onValueChange = { times[index] = it },
+                            label = { Text("Time ${index + 1}") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        if (times.size > 1) {
+                            IconButton(onClick = { times.removeAt(index) }) {
+                                Icon(Icons.Default.Delete, null, tint = Color.Gray)
+                            }
+                        }
+                    }
+                }
+                if (times.size < 4) {
+                    TextButton(onClick = { times.add("08:00") }) {
+                        Icon(Icons.Default.Add, null)
+                        Text("Add Time Slot")
+                    }
+                }
+
+                HorizontalDivider()
+
+                Text("Schedule", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                ScheduleType.entries.forEach { type ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { scheduleType = type },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = scheduleType == type, onClick = { scheduleType = type })
+                        Text(type.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
+                    }
+                }
+
+                if (scheduleType == ScheduleType.SPECIFIC_DAYS) {
+                    Text("Select Days", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    FlowRow(modifier = Modifier.fillMaxWidth()) {
+                        DayOfWeek.entries.forEach { day ->
+                            FilterChip(
+                                selected = selectedDays.contains(day),
+                                onClick = {
+                                    if (selectedDays.contains(day)) selectedDays.remove(day)
+                                    else selectedDays.add(day)
+                                },
+                                label = { Text(day.name.take(3)) },
+                                modifier = Modifier.padding(4.dp)
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name, time) },
-                enabled = name.isNotBlank() && time.isNotBlank(),
+                onClick = { onSave(name, times.toList(), scheduleType, selectedDays.toList()) },
+                enabled = name.isNotBlank() && times.all { it.isNotBlank() },
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text("Save")
