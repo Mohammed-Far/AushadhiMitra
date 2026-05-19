@@ -17,6 +17,32 @@ sealed class AuthState {
 
 class AuthViewModel : ViewModel() {
     private val auth: FirebaseAuth = Firebase.auth
+private val _googleSignInClient = mutableStateOf<com.google.android.gms.auth.api.signin.GoogleSignInClient?>(null)
+
+fun initGoogleSignIn(context: android.content.Context) {
+    val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+        com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+    )
+        .requestIdToken("241203154470-4nbs5880rhu4mm85if58hbvdn5qkekhh.apps.googleusercontent.com")
+        .requestEmail()
+        .build()
+    _googleSignInClient.value = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+}
+
+fun getGoogleSignInIntent() = _googleSignInClient.value?.signInIntent
+
+fun firebaseAuthWithGoogle(idToken: String) {
+    _authState.value = AuthState.Loading
+    val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+    auth.signInWithCredential(credential)
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                _authState.value = AuthState.Authenticated
+            } else {
+                _authState.value = AuthState.Error(task.exception?.message ?: "Google sign in failed.")
+            }
+        }
+}
 
     private val _authState = mutableStateOf<AuthState>(AuthState.Idle)
     val authState: State<AuthState> = _authState

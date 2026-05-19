@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "241203154470",
+    "project_id": "gen-lang-client-0265475240",
+    "storage_bucket": "gen-lang-client-0265475240.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:241203154470:android:4df722c8109d80d063a0e7",
+        "android_client_info": {
+          "package_name": "com.example.greenpulse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "241203154470-4nbs5880rhu4mm85if58hbvdn5qkekhh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0Q6pcuU0PsQtnAtgThKDVQidNtBWO0vQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "241203154470-4nbs5880rhu4mm85if58hbvdn5qkekhh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
