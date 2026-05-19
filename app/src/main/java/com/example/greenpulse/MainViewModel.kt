@@ -23,6 +23,11 @@ class MainViewModel : ViewModel() {
 
     init {
         initializeMedicineSlots()
+        // ✅ loadData() removed from here — called only after auth
+    }
+
+    // ✅ Called from AppNavigator after AuthState.Authenticated
+    fun onUserAuthenticated() {
         loadData()
     }
 

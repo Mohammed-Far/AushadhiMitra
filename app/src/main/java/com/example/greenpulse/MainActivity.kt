@@ -1,5 +1,3 @@
-package com.example.greenpulse
-
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -44,6 +42,14 @@ fun AppNavigator(
     mainViewModel: MainViewModel = viewModel()
 ) {
     val authState by authViewModel.authState
+
+    // ✅ THIS IS THE KEY FIX
+    // Only load data after user is confirmed authenticated
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Authenticated) {
+            mainViewModel.onUserAuthenticated()
+        }
+    }
 
     when (authState) {
         is AuthState.Authenticated -> {
@@ -114,7 +120,6 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
             }
         }
 
-        // Premium Alert Overlay with Smooth Animation
         AnimatedVisibility(
             visible = isBuzzerActive && (alertingMedicine != null),
             enter = fadeIn() + expandIn(expandFrom = Alignment.Center),
