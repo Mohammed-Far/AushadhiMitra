@@ -29,13 +29,14 @@ import com.example.greenpulse.data.DoseStatus
 @Composable
 fun ScheduleScreen(viewModel: MainViewModel) {
     val doses = viewModel.doseRecords
+    val isLoading by viewModel.isLoading
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        // Premium Header
+        // ... (Header Box content remains same)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -54,7 +55,7 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             ) {
                 Column {
                     Text(
-                        text = "Good Morning",
+                        text = "AushadhiMitra",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     )
@@ -89,7 +90,11 @@ fun ScheduleScreen(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
         
-        if (doses.isEmpty()) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (doses.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.AutoMirrored.Filled.EventNote, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))

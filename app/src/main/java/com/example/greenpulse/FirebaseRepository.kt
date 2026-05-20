@@ -7,18 +7,16 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 
 class FirebaseRepository {
-    private val db = Firebase.firestore("ai-studio-63a0dbe2-44e4-45c7-b52f-042b735f1da4")
+    private val db = Firebase.firestore
     private val auth = Firebase.auth
     private val userId get() = auth.currentUser?.uid ?: "unknown"
 
-    // Helper to get user's medicine collection
     private fun userMedicines() = db.collection("users").document(userId).collection("medicines")
 
     // ─── MEDICINES ───────────────────────────────────────────
 
     suspend fun saveMedicine(medicine: Medicine) {
         if (userId == "unknown") return
-        // Use just the slot name (S1, S2, etc) as the document ID for a clean look
         userMedicines().document(medicine.slot.name)
             .set(mapOf(
                 "tabletName" to medicine.tabletName,
@@ -39,14 +37,16 @@ class FirebaseRepository {
         return snapshot.documents.mapNotNull { doc ->
             try {
                 Medicine(
-                    id = doc.id, // ID is now S1, S2, etc.
+                    id = doc.id,
                     tabletName = doc.getString("tabletName") ?: "",
                     userMedicineName = doc.getString("userMedicineName") ?: "",
                     times = (doc.get("times") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
                     slot = SlotID.valueOf(doc.getString("slot") ?: "S1"),
                     userId = userId,
                     scheduleType = ScheduleType.valueOf(doc.getString("scheduleType") ?: "EVERY_DAY"),
-                    selectedDays = (doc.get("selectedDays") as? List<*>)?.mapNotNull { DayOfWeek.valueOf(it as String) } ?: emptyList(),
+                    selectedDays = (doc.get("selectedDays") as? List<*>)?.mapNotNull {
+                        try { DayOfWeek.valueOf(it as String) } catch (e: Exception) { null }
+                    } ?: emptyList(),
                     isActive = doc.getBoolean("isActive") ?: true,
                     createdAt = doc.getLong("createdAt") ?: 0L
                 )
@@ -64,11 +64,7 @@ class FirebaseRepository {
             )).await()
     }
 
-    // Listen for hardware dispensing in real time
-    fun listenForDispensed(
-        slot: SlotID,
-        onDispensed: () -> Unit
-    ) {
+    fun listenForDispensed(slot: SlotID, onDispensed: () -> Unit) {
         if (userId == "unknown") return
         userMedicines().document(slot.name)
             .addSnapshotListener { snapshot, _ ->
@@ -87,12 +83,14 @@ class FirebaseRepository {
             .document(record.id)
             .set(mapOf(
                 "id" to record.id,
+                "medicineId" to record.medicineId,
                 "tabletName" to record.tabletName,
                 "medicineName" to record.medicineName,
                 "slot" to record.slot.name,
                 "scheduledTime" to record.scheduledTime,
                 "actualTime" to record.actualTime,
                 "status" to record.status.name,
+                "sensorDetected" to record.sensorDetected,
                 "date" to java.time.LocalDate.now().toString()
             )).await()
     }
@@ -145,15 +143,29 @@ class FirebaseRepository {
                 bloodGroup = snapshot.getString("bloodGroup") ?: "",
                 weight = snapshot.getString("weight") ?: "",
                 healthCondition = snapshot.getString("healthCondition") ?: "",
-                isSetupComplete = snapshot.getBoolean("isSetupComplete") ?: false
+                // ✅ If doc exists and name is filled, treat as setup complete
+                isSetupComplete = snapshot.getBoolean("isSetupComplete")
+                    ?: (snapshot.getString("name")?.isNotBlank() == true)
             )
         } else null
     }
 
     suspend fun saveProfile(profile: PatientProfile) {
         if (userId == "unknown") return
+        // ✅ Use merge so we don't overwrite uid, email, fcmToken etc
         db.collection("users").document(userId)
-            .set(profile).await()
+            .set(
+                mapOf(
+                    "name" to profile.name,
+                    "age" to profile.age,
+                    "gender" to profile.gender,
+                    "bloodGroup" to profile.bloodGroup,
+                    "weight" to profile.weight,
+                    "healthCondition" to profile.healthCondition,
+                    "isSetupComplete" to true  // ✅ Always true when saving profile
+                ),
+                com.google.firebase.firestore.SetOptions.merge() // ✅ Merge not overwrite
+            ).await()
     }
 
     // ─── FCM TOKEN ───────────────────────────────────────────

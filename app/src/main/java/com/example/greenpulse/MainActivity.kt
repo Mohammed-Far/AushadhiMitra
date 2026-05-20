@@ -45,8 +45,6 @@ fun AppNavigator(
 ) {
     val authState by authViewModel.authState
 
-    // ✅ THIS IS THE KEY FIX
-    // Only load data after user is confirmed authenticated
     LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
             mainViewModel.onUserAuthenticated()
@@ -55,11 +53,23 @@ fun AppNavigator(
 
     when (authState) {
         is AuthState.Authenticated -> {
+            val isProfileLoaded by mainViewModel.isProfileLoaded
             val profile by mainViewModel.patientProfile
-            if (!profile.isSetupComplete) {
+
+            if (!isProfileLoaded) {
+                // ✅ Always show loading first — never jump to profile setup prematurely
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (!profile.isSetupComplete) {
+                // ✅ Only show profile setup AFTER Firestore has loaded and confirmed no profile exists
                 ProfileSetupScreen(mainViewModel)
             } else {
-                MainScreen(mainViewModel) { authViewModel.signOut() }
+                // ✅ Existing user — go straight to main screen
+                MainScreen(mainViewModel) {
+                    mainViewModel.clearData()
+                    authViewModel.signOut()
+                }
             }
         }
         else -> {
@@ -74,7 +84,7 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
     val navController = rememberNavController()
     val isBuzzerActive by viewModel.isBuzzerActive
     val alertingMedicine by viewModel.currentAlertMedicine
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = {
@@ -85,7 +95,7 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
                 ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
-                    
+
                     Screen.bottomNavItems.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.title) },
@@ -121,8 +131,8 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
                 composable(Screen.Tablets.route) { TabletsScreen(viewModel) }
                 composable(Screen.Reports.route) { ReportsScreen(viewModel) }
                 composable(Screen.SMSLogs.route) { SMSLogsScreen(viewModel) }
-                composable(Screen.Settings.route) { 
-                    SettingsScreen(viewModel, onLogout = onSignOut) 
+                composable(Screen.Settings.route) {
+                    SettingsScreen(viewModel, onLogout = onSignOut)
                 }
             }
         }
@@ -149,7 +159,10 @@ fun MainScreen(viewModel: MainViewModel, onSignOut: () -> Unit) {
                         modifier = Modifier
                             .background(
                                 Brush.verticalGradient(
-                                    colors = listOf(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.surface),
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.errorContainer,
+                                        MaterialTheme.colorScheme.surface
+                                    ),
                                 ),
                             )
                             .padding(32.dp),
