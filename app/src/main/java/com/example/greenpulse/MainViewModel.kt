@@ -1,14 +1,15 @@
 package com.example.greenpulse
 
+import android.app.Application
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.greenpulse.data.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = FirebaseRepository()
 
     val medicines = mutableStateListOf<Medicine>()
@@ -235,6 +236,13 @@ class MainViewModel : ViewModel() {
         isBuzzerActive.value = false
 
         addSMSLog(SMSLogType.CONFIRMATION, "${medicine.tabletName} dispensed. Waiting for pickup...")
+        
+        // Push notification for dispensing
+        NotificationHelper.showPillNotification(
+            getApplication(),
+            "💊 Medicine Dispensed",
+            "${medicine.userMedicineName} (${medicine.tabletName}) has been dispensed. Please pick it up."
+        )
 
         viewModelScope.launch {
             kotlinx.coroutines.delay(5000)
@@ -261,6 +269,21 @@ class MainViewModel : ViewModel() {
                 "CRITICAL: ${record.tabletName} was NOT taken!"
             else
                 "CONFIRMED: ${record.tabletName} taken."
+            
+            // Push notification based on sensor outcome
+            if (record.sensorDetected) {
+                NotificationHelper.showPillNotification(
+                    getApplication(),
+                    "⚠️ Tablet Remaining",
+                    "The tablet ${record.medicineName} is still in the tray! Please take it."
+                )
+            } else {
+                NotificationHelper.showPillNotification(
+                    getApplication(),
+                    "✅ Tablet Taken",
+                    "Successfully confirmed that ${record.medicineName} was taken."
+                )
+            }
 
             addSMSLog(
                 if (record.sensorDetected) SMSLogType.WARNING else SMSLogType.CONFIRMATION,
