@@ -21,7 +21,7 @@ class FirebaseRepository {
             .set(mapOf(
                 "tabletName" to medicine.tabletName,
                 "userMedicineName" to medicine.userMedicineName,
-                "times" to medicine.times,
+                "time" to medicine.time,
                 "slot" to medicine.slot.name,
                 "scheduleType" to medicine.scheduleType.name,
                 "selectedDays" to medicine.selectedDays.map { it.name },
@@ -40,7 +40,7 @@ class FirebaseRepository {
                     id = doc.id,
                     tabletName = doc.getString("tabletName") ?: "",
                     userMedicineName = doc.getString("userMedicineName") ?: "",
-                    times = (doc.get("times") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    time = doc.getString("time") ?: "08:00",
                     slot = SlotID.valueOf(doc.getString("slot") ?: "S1"),
                     userId = userId,
                     scheduleType = ScheduleType.valueOf(doc.getString("scheduleType") ?: "EVERY_DAY"),
@@ -59,7 +59,7 @@ class FirebaseRepository {
         userMedicines().document(slot.name)
             .update(mapOf(
                 "userMedicineName" to "",
-                "times" to emptyList<String>(),
+                "time" to "08:00",
                 "isActive" to false
             )).await()
     }
@@ -143,7 +143,6 @@ class FirebaseRepository {
                 bloodGroup = snapshot.getString("bloodGroup") ?: "",
                 weight = snapshot.getString("weight") ?: "",
                 healthCondition = snapshot.getString("healthCondition") ?: "",
-                // ✅ If doc exists and name is filled, treat as setup complete
                 isSetupComplete = snapshot.getBoolean("isSetupComplete")
                     ?: (snapshot.getString("name")?.isNotBlank() == true)
             )
@@ -152,7 +151,6 @@ class FirebaseRepository {
 
     suspend fun saveProfile(profile: PatientProfile) {
         if (userId == "unknown") return
-        // ✅ Use merge so we don't overwrite uid, email, fcmToken etc
         db.collection("users").document(userId)
             .set(
                 mapOf(
@@ -162,9 +160,9 @@ class FirebaseRepository {
                     "bloodGroup" to profile.bloodGroup,
                     "weight" to profile.weight,
                     "healthCondition" to profile.healthCondition,
-                    "isSetupComplete" to true  // ✅ Always true when saving profile
+                    "isSetupComplete" to true
                 ),
-                com.google.firebase.firestore.SetOptions.merge() // ✅ Merge not overwrite
+                com.google.firebase.firestore.SetOptions.merge()
             ).await()
     }
 

@@ -22,7 +22,7 @@ data class Medicine(
     val id: String = "", 
     val tabletName: String = "", 
     val userMedicineName: String = "", 
-    val times: List<String> = emptyList(), // Up to 4 times: ["08:00", "14:00", ...]
+    val time: String = "08:00", // Single fixed time slot
     val slot: SlotID = SlotID.S1,
     val userId: String = "",
     val scheduleType: ScheduleType = ScheduleType.EVERY_DAY,

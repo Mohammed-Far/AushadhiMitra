@@ -57,15 +57,13 @@ fun AppNavigator(
             val profile by mainViewModel.patientProfile
 
             if (!isProfileLoaded) {
-                // ✅ Always show loading first — never jump to profile setup prematurely
+                // ✅ Show loading screen until we confirm if profile exists
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else if (!profile.isSetupComplete) {
-                // ✅ Only show profile setup AFTER Firestore has loaded and confirmed no profile exists
                 ProfileSetupScreen(mainViewModel)
             } else {
-                // ✅ Existing user — go straight to main screen
                 MainScreen(mainViewModel) {
                     mainViewModel.clearData()
                     authViewModel.signOut()

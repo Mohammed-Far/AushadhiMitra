@@ -49,7 +49,7 @@ class MainViewModel : ViewModel() {
                     tabletName = "Tablet ${index + 1}",
                     slot = slot,
                     userMedicineName = "",
-                    times = emptyList()
+                    time = "08:00"
                 )
             )
         }
@@ -60,6 +60,7 @@ class MainViewModel : ViewModel() {
             isLoading.value = true
 
             try {
+                // 1. Load Profile First
                 val profile = try {
                     repository.loadProfile()
                 } catch (e: Exception) {
@@ -67,8 +68,9 @@ class MainViewModel : ViewModel() {
                     null
                 }
                 if (profile != null) patientProfile.value = profile
-                isProfileLoaded.value = true
+                isProfileLoaded.value = true // ✅ Profile is now verified
 
+                // 2. Load Medicines
                 try {
                     val loadedMedicines = repository.loadMedicines()
                     loadedMedicines.forEach { loaded ->
@@ -79,6 +81,7 @@ class MainViewModel : ViewModel() {
                     }
                 } catch (e: Exception) { e.printStackTrace() }
 
+                // 3. Load Doses
                 try {
                     val loadedRecords = repository.loadTodayDoseRecords()
                     doseRecords.clear()
@@ -99,7 +102,7 @@ class MainViewModel : ViewModel() {
     fun updateMedicine(
         slot: SlotID,
         userName: String,
-        times: List<String>,
+        time: String,
         scheduleType: ScheduleType,
         selectedDays: List<DayOfWeek>
     ) {
@@ -107,7 +110,7 @@ class MainViewModel : ViewModel() {
         if (index != -1) {
             val updatedMed = medicines[index].copy(
                 userMedicineName = userName,
-                times = times,
+                time = time,
                 scheduleType = scheduleType,
                 selectedDays = selectedDays,
                 isActive = true,
@@ -162,21 +165,20 @@ class MainViewModel : ViewModel() {
             }
 
             if (shouldSchedule) {
-                med.times.forEach { time ->
-                    val recordId = "${med.id}_${todayStr}_${time.replace(":", "")}"
-                    if (!currentDoseIds.contains(recordId)) {
-                        newRecords.add(
-                            DoseRecord(
-                                id = recordId,
-                                medicineId = med.id,
-                                tabletName = med.tabletName,
-                                medicineName = med.userMedicineName,
-                                scheduledTime = time,
-                                status = DoseStatus.PENDING,
-                                slot = med.slot
-                            )
+                val time = med.time
+                val recordId = "${med.id}_${todayStr}_${time.replace(":", "")}"
+                if (!currentDoseIds.contains(recordId)) {
+                    newRecords.add(
+                        DoseRecord(
+                            id = recordId,
+                            medicineId = med.id,
+                            tabletName = med.tabletName,
+                            medicineName = med.userMedicineName,
+                            scheduledTime = time,
+                            status = DoseStatus.PENDING,
+                            slot = med.slot
                         )
-                    }
+                    )
                 }
             }
         }
@@ -199,7 +201,7 @@ class MainViewModel : ViewModel() {
         if (index != -1) {
             medicines[index] = medicines[index].copy(
                 userMedicineName = "",
-                times = emptyList(),
+                time = "08:00",
                 isActive = false
             )
             // ✅ Remove from UI immediately

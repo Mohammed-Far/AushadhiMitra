@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.*
@@ -88,12 +87,12 @@ fun TabletsScreen(viewModel: MainViewModel) {
         SlotEditDialog(
             slotName = currentSlot.tabletName,
             initialMedicineName = currentSlot.userMedicineName,
-            initialTimes = currentSlot.times.ifEmpty { listOf("08:00") },
+            initialTime = currentSlot.time,
             initialScheduleType = currentSlot.scheduleType,
             initialSelectedDays = currentSlot.selectedDays,
             onDismiss = { slotToEdit = null },
-            onSave = { name, times, type, days ->
-                viewModel.updateMedicine(currentSlot.slot, name, times, type, days)
+            onSave = { name, time, type, days ->
+                viewModel.updateMedicine(currentSlot.slot, name, time, type, days)
                 slotToEdit = null
             }
         )
@@ -149,7 +148,7 @@ fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit, on
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "🕐 ${med.times.joinToString(", ")}",
+                        text = "🕐 ${med.time}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -213,16 +212,16 @@ fun MedicineSlotCard(med: Medicine, onEdit: () -> Unit, onDelete: () -> Unit, on
 fun SlotEditDialog(
     slotName: String,
     initialMedicineName: String,
-    initialTimes: List<String>,
+    initialTime: String,
     initialScheduleType: ScheduleType,
     initialSelectedDays: List<DayOfWeek>,
     onDismiss: () -> Unit,
-    onSave: (String, List<String>, ScheduleType, List<DayOfWeek>) -> Unit,
+    onSave: (String, String, ScheduleType, List<DayOfWeek>) -> Unit,
 ) {
     var name by remember { mutableStateOf(value = initialMedicineName) }
-    val times = remember { mutableStateListOf(*initialTimes.toTypedArray()) }
+    var time by remember { mutableStateOf(initialTime) }
     var scheduleType by remember { mutableStateOf(initialScheduleType) }
-    var selectedDays = remember { mutableStateListOf(*initialSelectedDays.toTypedArray()) }
+    val selectedDays = remember { mutableStateListOf(*initialSelectedDays.toTypedArray()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -241,29 +240,14 @@ fun SlotEditDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Text("Reminder Times (Max 4)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                times.forEachIndexed { index, time ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = time,
-                            onValueChange = { times[index] = it },
-                            label = { Text("Time ${index + 1}") },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        if (times.size > 1) {
-                            IconButton(onClick = { times.removeAt(index) }) {
-                                Icon(Icons.Default.Delete, null, tint = Color.Gray)
-                            }
-                        }
-                    }
-                }
-                if (times.size < 4) {
-                    TextButton(onClick = { times.add("08:00") }) {
-                        Icon(Icons.Default.Add, null)
-                        Text("Add Time Slot")
-                    }
-                }
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { time = it },
+                    label = { Text("Reminder Time (HH:MM)") },
+                    placeholder = { Text("08:00") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
 
                 HorizontalDivider()
 
@@ -298,8 +282,8 @@ fun SlotEditDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name, times.toList(), scheduleType, selectedDays.toList()) },
-                enabled = name.isNotBlank() && times.all { it.isNotBlank() },
+                onClick = { onSave(name, time, scheduleType, selectedDays.toList()) },
+                enabled = name.isNotBlank() && time.isNotBlank(),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text("Save")
