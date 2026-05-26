@@ -69,8 +69,20 @@ fun ScheduleScreen(viewModel: MainViewModel) {
                 
                 Surface(
                     onClick = { 
-                        val pending = doses.find { it.status == DoseStatus.PENDING }
-                        pending?.let { p ->
+                        // Modified logic to dispense in order: Slot 1 -> 2 -> 3 -> 4
+                        val daysOrder = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+                        
+                        // Find the first pending record across all days and slots in order
+                        var foundRecord: DoseRecord? = null
+                        for (day in daysOrder) {
+                            val dayDoses = doses.filter { it.dayOfWeek == day }
+                            // Sort by slot index (S1=0, S2=1, etc.)
+                            val sortedDoses = dayDoses.sortedBy { it.slot.ordinal }
+                            foundRecord = sortedDoses.find { it.status == DoseStatus.PENDING }
+                            if (foundRecord != null) break
+                        }
+
+                        foundRecord?.let { p ->
                             val med = viewModel.medicines.find { it.slot == p.slot }
                             med?.let { m -> viewModel.triggerAlert(m, p.id) }
                         }

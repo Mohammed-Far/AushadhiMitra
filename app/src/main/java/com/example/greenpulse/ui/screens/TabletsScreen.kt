@@ -58,7 +58,7 @@ fun TabletsScreen(viewModel: MainViewModel) {
                     color = MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.8f),
                 )
                 Text(
-                    text = "6 Tablet Slots",
+                    text = "4 Tablet Slots",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onSecondary,

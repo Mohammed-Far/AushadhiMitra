@@ -7,7 +7,7 @@ enum class IntakeType {
 }
 
 enum class SlotID {
-    S1, S2, S3, S4, S5, S6
+    S1, S2, S3, S4
 }
 
 enum class ScheduleType {
@@ -40,7 +40,8 @@ data class DoseRecord(
     val scheduledTime: String = "",
     val actualTime: Long? = null,
     val status: DoseStatus = DoseStatus.PENDING,
-    val sensorDetected: Boolean = true
+    val sensorDetected: Boolean = true,
+    val dayOfWeek: String = "" // e.g., "Monday", "Tuesday"
 )
 
 enum class DoseStatus {

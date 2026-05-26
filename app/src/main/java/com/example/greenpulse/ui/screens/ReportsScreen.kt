@@ -8,6 +8,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,6 +30,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
     val medicines = viewModel.medicines
     
     val takenCount = records.count { it.status == DoseStatus.TAKEN }
+    val missedCount = records.count { it.status == DoseStatus.MISSED }
     val totalCount = records.size
     val overallAdherence = if (totalCount > 0) (takenCount.toFloat() / totalCount.toFloat()) else 1f
 
@@ -64,6 +69,29 @@ fun ReportsScreen(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Quick Stats Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            PremiumStatCard(
+                label = "Taken",
+                value = takenCount.toString(),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f)
+            )
+            PremiumStatCard(
+                label = "Missed",
+                value = missedCount.toString(),
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Adherence Score Card
         Card(
             modifier = Modifier
@@ -79,7 +107,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Filled.TrendingUp, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("System Score", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Adherence Rate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("${(overallAdherence * 100).toInt()}%", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black)
@@ -93,14 +121,149 @@ fun ReportsScreen(viewModel: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = Color.White.copy(alpha = 0.3f),
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Based on $totalCount scheduled doses this week",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Tablet-wise breakdown (User Friendly + System Reference)
+        // Premium Weekly Adherence Card (Based on reference)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Verified,
+                                contentDescription = null,
+                                tint = Color(0xFF105D38),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Weekly Adherence",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF105D38)
+                            )
+                        }
+                        Text(
+                            text = "Track your daily doses",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(start = 28.dp)
+                        )
+                    }
+                    
+                    Surface(
+                        color = Color(0xFFE8F5E9),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                tint = Color(0xFF105D38),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                val fullDays = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+                
+                // Table Header
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Medicine",
+                        modifier = Modifier.width(80.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF105D38)
+                    )
+                    daysOfWeek.forEach { day ->
+                        Text(
+                            text = day,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Medicine Rows
+                medicines.forEach { med ->
+                    val displayName = if (med.userMedicineName.isEmpty()) "Slot ${med.tabletName.replace("Tablet ", "")}" else med.userMedicineName
+                    val displayLabel = if (displayName.length > 8) displayName.take(7) + "..." else displayName
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = displayLabel,
+                            modifier = Modifier.width(80.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF105D38)
+                        )
+                        
+                        fullDays.forEach { day ->
+                            val record = records.find { it.slot == med.slot && it.dayOfWeek == day }
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (record?.status == DoseStatus.TAKEN) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF105D38))
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.LightGray.copy(alpha = 0.3f))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // 7-Day Slot Summary
         Text(
-            text = "Slot Breakdown (Reference)",
+            text = "Performance Details",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 24.dp)
@@ -109,8 +272,9 @@ fun ReportsScreen(viewModel: MainViewModel) {
         Spacer(modifier = Modifier.height(12.dp))
 
         medicines.forEach { med ->
-            val medRecords = records.filter { it.tabletName == med.tabletName }
+            val medRecords = records.filter { it.slot == med.slot }
             val medTaken = medRecords.count { it.status == DoseStatus.TAKEN }
+            val medMissed = medRecords.count { it.status == DoseStatus.MISSED }
             val medTotal = medRecords.size
             val medAdherence = if (medTotal > 0) (medTaken.toFloat() / medTotal.toFloat()) else 1f
 
@@ -149,16 +313,31 @@ fun ReportsScreen(viewModel: MainViewModel) {
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
+                        Row(modifier = Modifier.padding(top = 4.dp)) {
+                            Text(
+                                text = "Taken: $medTaken",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Missed: $medMissed",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = "${(medAdherence * 100).toInt()}%",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = if (medAdherence > 0.8f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            color = if (medAdherence > 0.8f) MaterialTheme.colorScheme.primary else if (medAdherence > 0.5f) Color(0xFFFFA500) else MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = "$medTaken/$medTotal",
+                            text = "Total: $medTotal",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
